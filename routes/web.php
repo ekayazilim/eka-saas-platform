@@ -5,6 +5,7 @@ use App\Controllers\EkaApiKeyController;
 use App\Controllers\EkaAuthController;
 use App\Controllers\EkaBillingController;
 use App\Controllers\EkaDashboardController;
+use App\Controllers\EkaDomainController;
 use App\Controllers\EkaNotificationController;
 use App\Controllers\EkaPlanYonetimController;
 use App\Controllers\EkaProjectController;
@@ -74,6 +75,9 @@ $router->middleware([App\Middlewares\EkaCsrfMiddleware::class], function () use 
             $router->post('/uygulamalar/kaydet', EkaUygulamaController::class, 'store');
             $router->post('/uygulamalar/deploy', EkaUygulamaController::class, 'deploy');
             $router->post('/uygulamalar/yeniden-deploy', EkaUygulamaController::class, 'redeploy');
+            $router->get('/uygulamalar/domainler', EkaDomainController::class, 'index');
+            $router->post('/uygulamalar/domainler/kaydet', EkaDomainController::class, 'store');
+            $router->post('/uygulamalar/domainler/sil', EkaDomainController::class, 'delete');
             $router->get('/users', EkaUserController::class, 'index');
             $router->get('/users/create', EkaUserController::class, 'create');
             $router->post('/users/store', EkaUserController::class, 'store');
