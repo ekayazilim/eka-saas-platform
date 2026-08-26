@@ -9,6 +9,9 @@ define('CONFIG_PATH', BASE_PATH . '/config');
 define('STORAGE_PATH', BASE_PATH . '/storage');
 define('VIEWS_PATH', APP_PATH . '/Views');
 
+$appConfig = require CONFIG_PATH . '/app.php';
+date_default_timezone_set($appConfig['timezone'] ?? 'Europe/Istanbul');
+
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'];
 define('BASE_URL', $protocol . $host);
@@ -29,13 +32,12 @@ spl_autoload_register(function ($class) {
     }
 });
 
-require_once CONFIG_PATH . '/app.php';
 require_once CONFIG_PATH . '/database.php';
 require_once BASE_PATH . '/routes/web.php';
 
-use Core\EkaRouter;
 use Core\EkaRequest;
 use Core\EkaResponse;
+use Core\EkaRouter;
 
 $request = new EkaRequest();
 $response = new EkaResponse();
