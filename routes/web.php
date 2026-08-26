@@ -11,6 +11,7 @@ use App\Controllers\EkaPlanYonetimController;
 use App\Controllers\EkaProjectController;
 use App\Controllers\EkaUserController;
 use App\Controllers\EkaUygulamaController;
+use App\Controllers\EkaUygulamaIslemController;
 use App\Middlewares\EkaAuthMiddleware;
 use App\Middlewares\EkaGuestMiddleware;
 use App\Middlewares\EkaRoleMiddleware;
@@ -75,6 +76,10 @@ $router->middleware([App\Middlewares\EkaCsrfMiddleware::class], function () use 
             $router->post('/uygulamalar/kaydet', EkaUygulamaController::class, 'store');
             $router->post('/uygulamalar/deploy', EkaUygulamaController::class, 'deploy');
             $router->post('/uygulamalar/yeniden-deploy', EkaUygulamaController::class, 'redeploy');
+            $router->post('/uygulamalar/baslat', EkaUygulamaIslemController::class, 'start');
+            $router->post('/uygulamalar/durdur', EkaUygulamaIslemController::class, 'stop');
+            $router->post('/uygulamalar/senkronize-et', EkaUygulamaIslemController::class, 'sync');
+            $router->post('/uygulamalar/sil', EkaUygulamaIslemController::class, 'delete');
             $router->get('/uygulamalar/domainler', EkaDomainController::class, 'index');
             $router->post('/uygulamalar/domainler/kaydet', EkaDomainController::class, 'store');
             $router->post('/uygulamalar/domainler/sil', EkaDomainController::class, 'delete');
