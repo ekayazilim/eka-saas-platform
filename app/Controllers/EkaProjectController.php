@@ -2,11 +2,12 @@
 
 namespace App\Controllers;
 
+use App\Models\EkaActivityLog;
+use App\Models\EkaProject;
+use App\Services\EkaPaketServisi;
+use Core\EkaAuth;
 use Core\EkaController;
 use Core\EkaTenant;
-use App\Models\EkaProject;
-use App\Models\EkaActivityLog;
-use Core\EkaAuth;
 
 class EkaProjectController extends EkaController
 {
@@ -14,46 +15,63 @@ class EkaProjectController extends EkaController
     {
         $projectModel = new EkaProject();
         $projects = $projectModel->where('tenant_id', EkaTenant::id());
-        
-        return $this->view('projects/index', ['projects' => $projects]);
+        $paketServisi = new EkaPaketServisi();
+
+        return $this->view('projects/index', [
+            'projects' => $projects,
+            'limitler' => $paketServisi->kaynakLimitleri(),
+        ]);
     }
 
     public function create()
     {
+        $paketServisi = new EkaPaketServisi();
+        if (!$paketServisi->projeOlusturabilirMi()) {
+            $_SESSION['error'] = 'Paketinizin proje limiti doldu. Yeni proje için paket yükseltmeniz gerekmektedir.';
+            return $this->redirect('/projects');
+        }
+
         return $this->view('projects/create');
     }
 
     public function store()
     {
-        $name = $_POST['name'] ?? '';
-        $description = $_POST['description'] ?? '';
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
 
-        if (empty($name)) {
+        if ($name === '') {
             $_SESSION['error'] = 'Proje adı zorunludur.';
             return $this->redirect('/projects/create');
+        }
+
+        $paketServisi = new EkaPaketServisi();
+        if (!$paketServisi->projeOlusturabilirMi()) {
+            $_SESSION['error'] = 'Paketinizin proje limiti doldu. Yeni proje için paket yükseltmeniz gerekmektedir.';
+            return $this->redirect('/projects');
         }
 
         $projectModel = new EkaProject();
         $projectId = $projectModel->create([
             'tenant_id' => EkaTenant::id(),
             'name' => $name,
-            'description' => $description,
-            'status' => 'active'
+            'description' => $description !== '' ? $description : null,
+            'status' => 'active',
+            'provision_status' => 'pending',
         ]);
 
-        (new EkaActivityLog())->log(EkaTenant::id(), EkaAuth::id(), 'project_created', "Proje oluşturuldu: {$name}");
+        (new EkaActivityLog())->log(EkaTenant::id(), EkaAuth::id(), 'project_created', 'Proje oluşturuldu: ' . $name . ' #' . $projectId);
 
-        $_SESSION['success'] = 'Proje başarıyla oluşturuldu.';
+        $_SESSION['success'] = 'Proje oluşturuldu. İlk uygulama eklenirken deployment ortamı otomatik hazırlanacaktır.';
         return $this->redirect('/projects');
     }
 
     public function edit()
     {
-        $id = $_GET['id'] ?? 0;
+        $id = (int) ($_GET['id'] ?? 0);
         $projectModel = new EkaProject();
         $project = $projectModel->find($id);
 
-        if (!$project || $project['tenant_id'] !== EkaTenant::id()) {
+        if (!$project || (int) $project['tenant_id'] !== (int) EkaTenant::id()) {
             return $this->redirect('/projects');
         }
 
@@ -62,22 +80,27 @@ class EkaProjectController extends EkaController
 
     public function update()
     {
-        $id = $_POST['id'] ?? 0;
-        $name = $_POST['name'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $status = $_POST['status'] ?? 'active';
+        $id = (int) ($_POST['id'] ?? 0);
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $status = (string) ($_POST['status'] ?? 'active');
+
+        if ($name === '' || !in_array($status, ['active', 'archived'], true)) {
+            $_SESSION['error'] = 'Proje bilgileri geçersiz.';
+            return $this->redirect('/projects');
+        }
 
         $projectModel = new EkaProject();
         $project = $projectModel->find($id);
 
-        if ($project && $project['tenant_id'] === EkaTenant::id()) {
+        if ($project && (int) $project['tenant_id'] === (int) EkaTenant::id()) {
             $projectModel->update($id, [
                 'name' => $name,
-                'description' => $description,
-                'status' => $status
+                'description' => $description !== '' ? $description : null,
+                'status' => $status,
             ]);
-            
-            (new EkaActivityLog())->log(EkaTenant::id(), EkaAuth::id(), 'project_updated', "Proje güncellendi: {$name}");
+
+            (new EkaActivityLog())->log(EkaTenant::id(), EkaAuth::id(), 'project_updated', 'Proje güncellendi: ' . $name);
             $_SESSION['success'] = 'Proje başarıyla güncellendi.';
         }
 
