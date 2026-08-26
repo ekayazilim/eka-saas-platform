@@ -9,6 +9,7 @@ use App\Controllers\EkaDomainController;
 use App\Controllers\EkaNotificationController;
 use App\Controllers\EkaPlanYonetimController;
 use App\Controllers\EkaProjectController;
+use App\Controllers\EkaProvisioningController;
 use App\Controllers\EkaUserController;
 use App\Controllers\EkaUygulamaController;
 use App\Controllers\EkaUygulamaIslemController;
@@ -20,6 +21,11 @@ use Core\EkaRouter;
 
 $router = EkaRouter::getInstance();
 $appConfig = require CONFIG_PATH . '/app.php';
+
+$router->post('/api/provisioning/musteri-olustur', EkaProvisioningController::class, 'musteriOlustur');
+$router->post('/api/provisioning/paket-degistir', EkaProvisioningController::class, 'paketDegistir');
+$router->post('/api/provisioning/askiya-al', EkaProvisioningController::class, 'askiyaAl');
+$router->post('/api/provisioning/aktif-et', EkaProvisioningController::class, 'aktifEt');
 
 $router->middleware([App\Middlewares\EkaCsrfMiddleware::class], function () use ($router, $appConfig) {
     $router->get('/', function () {
