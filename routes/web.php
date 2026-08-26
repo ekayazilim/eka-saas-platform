@@ -16,18 +16,21 @@ use App\Middlewares\EkaTenantMiddleware;
 use Core\EkaRouter;
 
 $router = EkaRouter::getInstance();
+$appConfig = require CONFIG_PATH . '/app.php';
 
-$router->middleware([App\Middlewares\EkaCsrfMiddleware::class], function () use ($router) {
+$router->middleware([App\Middlewares\EkaCsrfMiddleware::class], function () use ($router, $appConfig) {
     $router->get('/', function () {
         header('Location: ' . BASE_URL . '/login');
         exit;
     }, 'index');
 
-    $router->middleware([EkaGuestMiddleware::class], function () use ($router) {
+    $router->middleware([EkaGuestMiddleware::class], function () use ($router, $appConfig) {
         $router->get('/login', EkaAuthController::class, 'showLogin');
         $router->post('/login', EkaAuthController::class, 'login');
-        $router->get('/register', EkaAuthController::class, 'showRegister');
-        $router->post('/register', EkaAuthController::class, 'register');
+        if (!empty($appConfig['registration_enabled'])) {
+            $router->get('/register', EkaAuthController::class, 'showRegister');
+            $router->post('/register', EkaAuthController::class, 'register');
+        }
         $router->get('/forgot-password', EkaAuthController::class, 'showForgot');
     });
 
