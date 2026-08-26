@@ -1,7 +1,5 @@
 <?php
 
-session_start();
-
 define('BASE_PATH', __DIR__);
 define('APP_PATH', BASE_PATH . '/app');
 define('CORE_PATH', BASE_PATH . '/core');
@@ -12,9 +10,23 @@ define('VIEWS_PATH', APP_PATH . '/Views');
 $appConfig = require CONFIG_PATH . '/app.php';
 date_default_timezone_set($appConfig['timezone'] ?? 'Europe/Istanbul');
 
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
-$host = $_SERVER['HTTP_HOST'];
-define('BASE_URL', $protocol . $host);
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => (bool) ($appConfig['session_secure_cookie'] ?? true),
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+session_start();
+
+$configUrl = (string) ($appConfig['url'] ?? '');
+if ($configUrl !== '') {
+    define('BASE_URL', $configUrl);
+} else {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $host = preg_replace('/[^A-Za-z0-9.:-]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+    define('BASE_URL', $protocol . $host);
+}
 
 spl_autoload_register(function ($class) {
     if (str_starts_with($class, 'Core\\')) {
