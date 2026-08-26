@@ -2,10 +2,11 @@
 
 return [
     'driver' => 'mysql',
-    'host' => '127.0.0.1',
-    'database' => 'eka_saas',
-    'username' => 'root',
-    'password' => '',
+    'host' => getenv('DB_HOST') ?: '127.0.0.1',
+    'port' => (int) (getenv('DB_PORT') ?: 3306),
+    'database' => getenv('DB_DATABASE') ?: 'eka_saas',
+    'username' => getenv('DB_USERNAME') ?: 'root',
+    'password' => getenv('DB_PASSWORD') ?: '',
     'charset' => 'utf8mb4',
     'collation' => 'utf8mb4_unicode_ci',
     'prefix' => '',
