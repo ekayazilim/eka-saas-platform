@@ -13,9 +13,8 @@ class EkaDatabase
     {
         if (self::$instance === null) {
             $config = require CONFIG_PATH . '/database.php';
-            
-            $dsn = "{$config['driver']}:host={$config['host']};dbname={$config['database']};charset={$config['charset']}";
-            
+            $dsn = "{$config['driver']}:host={$config['host']};port={$config['port']};dbname={$config['database']};charset={$config['charset']}";
+
             try {
                 self::$instance = new PDO($dsn, $config['username'], $config['password'], [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -24,11 +23,11 @@ class EkaDatabase
                 ]);
             } catch (PDOException $e) {
                 http_response_code(500);
-                echo "Veritabanı bağlantı hatası.";
+                echo 'Veritabanı bağlantı hatası.';
                 exit;
             }
         }
-        
+
         return self::$instance;
     }
 }
