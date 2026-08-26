@@ -15,13 +15,15 @@ define('BASE_URL', $protocol . $host);
 
 spl_autoload_register(function ($class) {
     if (str_starts_with($class, 'Core\\')) {
-        $file = CORE_PATH . '/' . str_replace('Core\\', '', $class) . '.php';
+        $relative = str_replace('Core\\', '', $class);
+        $file = CORE_PATH . '/' . str_replace('\\', DIRECTORY_SEPARATOR, $relative) . '.php';
     } elseif (str_starts_with($class, 'App\\')) {
-        $file = APP_PATH . '/' . str_replace('App\\', '', $class) . '.php';
+        $relative = str_replace('App\\', '', $class);
+        $file = APP_PATH . '/' . str_replace('\\', DIRECTORY_SEPARATOR, $relative) . '.php';
     } else {
-        $file = str_replace('\\', '/', $class) . '.php';
+        $file = str_replace('\\', DIRECTORY_SEPARATOR, $class) . '.php';
     }
-    
+
     if (isset($file) && file_exists($file)) {
         require_once $file;
     }
