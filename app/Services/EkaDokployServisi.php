@@ -86,7 +86,7 @@ class EkaDokployServisi
         return $this->istek('POST', '/application.create', $veri);
     }
 
-    public function githubKaydet(string $uygulamaId, string $sahip, string $repo, string $dal = 'main', ?string $githubId = null, ?string $buildYolu = null): array
+    public function githubKaydet(string $uygulamaId, string $sahip, string $repo, string $dal = 'main', string $githubId = '', string $buildYolu = '/'): array
     {
         return $this->istek('POST', '/application.saveGithubProvider', [
             'applicationId' => $uygulamaId,
@@ -101,7 +101,7 @@ class EkaDokployServisi
         ]);
     }
 
-    public function gitKaydet(string $uygulamaId, string $gitUrl, string $dal = 'main', ?string $buildYolu = null): array
+    public function gitKaydet(string $uygulamaId, string $gitUrl, string $dal = 'main', string $buildYolu = '/'): array
     {
         return $this->istek('POST', '/application.saveGitProvider', [
             'applicationId' => $uygulamaId,
@@ -111,6 +111,17 @@ class EkaDokployServisi
             'enableSubmodules' => false,
             'customGitBranch' => $dal,
             'customGitSSHKeyId' => null,
+        ]);
+    }
+
+    public function dockerKaydet(string $uygulamaId, string $image, string $kullaniciAdi = '', string $sifre = '', string $registryUrl = ''): array
+    {
+        return $this->istek('POST', '/application.saveDockerProvider', [
+            'applicationId' => $uygulamaId,
+            'dockerImage' => $image,
+            'username' => $kullaniciAdi,
+            'password' => $sifre,
+            'registryUrl' => $registryUrl,
         ]);
     }
 
@@ -125,12 +136,27 @@ class EkaDokployServisi
         ]);
     }
 
-    public function buildTipiniKaydet(string $uygulamaId, string $buildTipi, array $ek = []): array
+    public function buildTipiniKaydet(string $uygulamaId, string $buildTipi, ?string $publishDirectory = null, ?bool $staticSpa = null): array
     {
-        return $this->istek('POST', '/application.saveBuildType', array_merge([
+        $veri = [
             'applicationId' => $uygulamaId,
             'buildType' => $buildTipi,
-        ], $ek));
+            'dockerfile' => 'Dockerfile',
+            'dockerContextPath' => '/',
+            'dockerBuildStage' => '',
+            'herokuVersion' => '24',
+            'railpackVersion' => '0.15.4',
+        ];
+
+        if ($publishDirectory !== null) {
+            $veri['publishDirectory'] = $publishDirectory;
+        }
+
+        if ($staticSpa !== null) {
+            $veri['isStaticSpa'] = $staticSpa;
+        }
+
+        return $this->istek('POST', '/application.saveBuildType', $veri);
     }
 
     public function deployEt(string $uygulamaId, ?string $baslik = null, ?string $aciklama = null): array
