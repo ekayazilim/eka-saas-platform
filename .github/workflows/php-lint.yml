@@ -1,0 +1,25 @@
+name: PHP Syntax QA
+
+on:
+  push:
+    branches:
+      - main
+      - gelistirme/**
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  php-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kaynak kodu al
+        uses: actions/checkout@v4
+      - name: PHP 8.3 kur
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, curl, pdo_mysql
+          coverage: none
+      - name: PHP dosyalarini dogrula
+        run: find . -type f -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
