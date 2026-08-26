@@ -19,27 +19,23 @@ class EkaUygulamaController extends EkaController
     public function index()
     {
         $tenantId = (int) EkaTenant::id();
-        $uygulamalar = (new EkaUygulama())->tenantUygulamalari($tenantId);
-        $paket = (new EkaPaketServisi())->aktifPaket();
-        $limitler = (new EkaPaketServisi())->kaynakLimitleri();
-        $dokployHazir = (new EkaDokployServisi())->hazirMi();
+        $paketServisi = new EkaPaketServisi();
 
         return $this->view('uygulamalar/index', [
-            'uygulamalar' => $uygulamalar,
-            'paket' => $paket,
-            'limitler' => $limitler,
-            'dokployHazir' => $dokployHazir,
+            'uygulamalar' => (new EkaUygulama())->tenantUygulamalari($tenantId),
+            'paket' => $paketServisi->aktifPaket(),
+            'limitler' => $paketServisi->kaynakLimitleri(),
+            'dokployHazir' => (new EkaDokployServisi())->hazirMi(),
         ]);
     }
 
     public function create()
     {
         $tenantId = (int) EkaTenant::id();
-        $projeler = (new EkaProject())->where('tenant_id', $tenantId);
         $paketServisi = new EkaPaketServisi();
 
         return $this->view('uygulamalar/olustur', [
-            'projeler' => $projeler,
+            'projeler' => (new EkaProject())->where('tenant_id', $tenantId),
             'paket' => $paketServisi->aktifPaket(),
             'limitler' => $paketServisi->kaynakLimitleri(),
             'dockerKullanabilir' => $paketServisi->dockerKullanabilirMi(),
@@ -62,23 +58,27 @@ class EkaUygulamaController extends EkaController
         $dockerImage = trim((string) ($_POST['docker_image'] ?? ''));
         $env = trim((string) ($_POST['env'] ?? ''));
 
-        if ($ad === '' || $projectId <= 0) {
-            $_SESSION['error'] = 'Uygulama adı ve proje seçimi zorunludur.';
+        if ($ad === '' || mb_strlen($ad) > 191 || $projectId <= 0) {
+            $_SESSION['error'] = 'Geçerli bir uygulama adı ve proje seçimi zorunludur.';
             return $this->redirect('/uygulamalar/olustur');
         }
 
         $platformlar = ['react', 'nextjs', 'node', 'python', 'docker', 'static'];
         $kaynakTipleri = ['git', 'github', 'docker'];
-
         if (!in_array($platform, $platformlar, true) || !in_array($kaynakTipi, $kaynakTipleri, true)) {
             $_SESSION['error'] = 'Geçersiz platform veya kaynak tipi seçildi.';
             return $this->redirect('/uygulamalar/olustur');
         }
 
+        if ($kaynakTipi === 'docker' && $platform !== 'docker') {
+            $_SESSION['error'] = 'Docker Image kaynağı yalnızca Docker platformu ile kullanılabilir.';
+            return $this->redirect('/uygulamalar/olustur');
+        }
+
         $projectModel = new EkaProject();
         $proje = $projectModel->find($projectId);
-        if (!$proje || (int) $proje['tenant_id'] !== $tenantId) {
-            $_SESSION['error'] = 'Bu projeye erişim yetkiniz bulunmuyor.';
+        if (!$proje || (int) $proje['tenant_id'] !== $tenantId || ($proje['status'] ?? 'active') !== 'active') {
+            $_SESSION['error'] = 'Bu proje kullanılamıyor veya erişim yetkiniz bulunmuyor.';
             return $this->redirect('/uygulamalar');
         }
 
@@ -114,6 +114,8 @@ class EkaUygulamaController extends EkaController
             return $this->redirect('/uygulamalar');
         }
 
+        $dokployUygulamaId = '';
+
         try {
             $proje = $this->dokployProjesiniHazirla($projectModel, $proje);
             $ortamId = (string) ($proje['dokploy_environment_id'] ?? '');
@@ -138,8 +140,10 @@ class EkaUygulamaController extends EkaController
             }
 
             if ($kaynakTipi !== 'docker') {
-                if ($platform === 'react' || $platform === 'static') {
-                    $dokploy->buildTipiniKaydet($dokployUygulamaId, 'static', 'dist', true);
+                if ($platform === 'react') {
+                    $dokploy->buildTipiniKaydet($dokployUygulamaId, 'nixpacks', './dist', true);
+                } elseif ($platform === 'static') {
+                    $dokploy->buildTipiniKaydet($dokployUygulamaId, 'static', null, false);
                 } elseif ($platform === 'docker') {
                     $dokploy->buildTipiniKaydet($dokployUygulamaId, 'dockerfile');
                 } else {
@@ -181,6 +185,14 @@ class EkaUygulamaController extends EkaController
             $_SESSION['success'] = 'Uygulama oluşturuldu. İlk deployment işlemini başlatabilirsiniz.';
             return $this->redirect('/uygulamalar');
         } catch (Throwable $e) {
+            if ($dokployUygulamaId !== '') {
+                try {
+                    $dokploy->hamIstek('POST', '/application.delete', ['applicationId' => $dokployUygulamaId]);
+                } catch (Throwable $rollbackHatasi) {
+                    (new EkaActivityLog())->log($tenantId, EkaAuth::id(), 'cloud_application_rollback_failed', 'Rollback hatası: ' . $rollbackHatasi->getMessage());
+                }
+            }
+
             (new EkaActivityLog())->log($tenantId, EkaAuth::id(), 'cloud_application_create_failed', 'Uygulama oluşturma hatası: ' . $e->getMessage());
             $_SESSION['error'] = 'Uygulama oluşturulamadı: ' . $e->getMessage();
             return $this->redirect('/uygulamalar/olustur');
@@ -253,26 +265,34 @@ class EkaUygulamaController extends EkaController
             return $proje;
         }
 
-        $dokploy = new EkaDokployServisi();
-        $uzak = $dokploy->projeOlustur((string) $proje['name'], $proje['description'] ?? null);
-        $dokployProjeId = (string) ($uzak['project']['projectId'] ?? $uzak['projectId'] ?? '');
-        $dokployOrtamId = (string) ($uzak['environment']['environmentId'] ?? $uzak['environmentId'] ?? '');
+        try {
+            $uzak = (new EkaDokployServisi())->projeOlustur((string) $proje['name'], $proje['description'] ?? null);
+            $dokployProjeId = (string) ($uzak['project']['projectId'] ?? $uzak['projectId'] ?? '');
+            $dokployOrtamId = (string) ($uzak['environment']['environmentId'] ?? $uzak['environmentId'] ?? '');
 
-        if ($dokployProjeId === '' || $dokployOrtamId === '') {
-            throw new RuntimeException('Dokploy proje veya environment kimliği alınamadı.');
+            if ($dokployProjeId === '' || $dokployOrtamId === '') {
+                throw new RuntimeException('Dokploy proje veya environment kimliği alınamadı.');
+            }
+
+            $projectModel->update((int) $proje['id'], [
+                'dokploy_project_id' => $dokployProjeId,
+                'dokploy_environment_id' => $dokployOrtamId,
+                'provision_status' => 'ready',
+                'provision_error' => null,
+                'last_sync_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            $proje['dokploy_project_id'] = $dokployProjeId;
+            $proje['dokploy_environment_id'] = $dokployOrtamId;
+            $proje['provision_status'] = 'ready';
+            return $proje;
+        } catch (Throwable $e) {
+            $projectModel->update((int) $proje['id'], [
+                'provision_status' => 'error',
+                'provision_error' => $e->getMessage(),
+                'last_sync_at' => date('Y-m-d H:i:s'),
+            ]);
+            throw $e;
         }
-
-        $projectModel->update((int) $proje['id'], [
-            'dokploy_project_id' => $dokployProjeId,
-            'dokploy_environment_id' => $dokployOrtamId,
-            'provision_status' => 'ready',
-            'provision_error' => null,
-            'last_sync_at' => date('Y-m-d H:i:s'),
-        ]);
-
-        $proje['dokploy_project_id'] = $dokployProjeId;
-        $proje['dokploy_environment_id'] = $dokployOrtamId;
-        $proje['provision_status'] = 'ready';
-        return $proje;
     }
 }
